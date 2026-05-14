@@ -15,12 +15,10 @@ def create_job(
     db: Session = Depends(get_db),
     current_user_id: int = Depends(get_current_user),
 ):
-    # Check if user is an employer
     user = db.query(models.User).filter(models.User.id == current_user_id).first()
     if user.role != "employer":
         raise HTTPException(status_code=403, detail="Only employers can post jobs")
 
-    # Get employer profile
     employer = db.query(models.EmployerProfile).filter(
         models.EmployerProfile.user_id == current_user_id
     ).first()
@@ -96,7 +94,6 @@ def update_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Check ownership
     employer = db.query(models.EmployerProfile).filter(
         models.EmployerProfile.user_id == current_user_id
     ).first()
@@ -138,3 +135,85 @@ def delete_job(
     db.delete(job)
     db.commit()
     return {"message": "Job deleted"}
+
+
+# ----- JOBSEEKER: Save/bookmark a job -----
+@router.post("/{job_id}/save")
+def save_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user),
+):
+    seeker = db.query(models.JobseekerProfile).filter(
+        models.JobseekerProfile.user_id == current_user_id
+    ).first()
+    if not seeker:
+        raise HTTPException(status_code=403, detail="Only jobseekers can save jobs")
+
+    job = db.query(models.Job).filter(models.Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    existing = db.query(models.SavedJob).filter(
+        models.SavedJob.jobseeker_id == seeker.id,
+        models.SavedJob.job_id == job_id,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Job already saved")
+
+    saved = models.SavedJob(jobseeker_id=seeker.id, job_id=job_id)
+    db.add(saved)
+    db.commit()
+    return {"message": "Job saved"}
+
+
+# ----- JOBSEEKER: Unsave a job -----
+@router.delete("/{job_id}/save")
+def unsave_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user),
+):
+    seeker = db.query(models.JobseekerProfile).filter(
+        models.JobseekerProfile.user_id == current_user_id
+    ).first()
+    if not seeker:
+        raise HTTPException(status_code=403, detail="Only jobseekers can unsave jobs")
+
+    saved = db.query(models.SavedJob).filter(
+        models.SavedJob.jobseeker_id == seeker.id,
+        models.SavedJob.job_id == job_id,
+    ).first()
+    if not saved:
+        raise HTTPException(status_code=404, detail="Saved job not found")
+
+    db.delete(saved)
+    db.commit()
+    return {"message": "Job unsaved"}
+
+
+# ----- JOBSEEKER: Get my saved jobs -----
+@router.get("/saved/mine")
+def get_saved_jobs(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user),
+):
+    seeker = db.query(models.JobseekerProfile).filter(
+        models.JobseekerProfile.user_id == current_user_id
+    ).first()
+    if not seeker:
+        raise HTTPException(status_code=403, detail="Only jobseekers can view saved jobs")
+
+    saved = (
+        db.query(models.SavedJob)
+        .filter(models.SavedJob.jobseeker_id == seeker.id)
+        .all()
+    )
+
+    jobs = []
+    for s in saved:
+        job = db.query(models.Job).filter(models.Job.id == s.job_id).first()
+        if job:
+            jobs.append(job)
+
+    return jobs
