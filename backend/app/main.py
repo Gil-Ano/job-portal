@@ -10,7 +10,7 @@ app = FastAPI(title="Job Portal API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://job-portal-wheat-ten.vercel.app", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -23,7 +23,7 @@ app.include_router(applications.router)
 
 @app.get("/")
 def root():
-    return {"message": "Job Portal API is running"}
+    return {"message": "Get Hired API is running"}
 
 
 @app.get("/health")
